@@ -20,6 +20,9 @@
         .markdown-body pre { background: #2d2d2d !important; border-radius: 0.5rem; padding: 1rem !important; color: #ccc; }
         .widget { background: white; border-radius: 0.75rem; padding: 1.5rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); margin-bottom: 1.5rem; }
     </style>
+    {{ if .Theme.Config.favicon_url }}
+        <link rel="icon" href="{{ .Theme.Config.favicon_url }}">
+    {{ end }}
 </head>
 
 <body class="flex flex-col min-h-screen" hx-boost="true">

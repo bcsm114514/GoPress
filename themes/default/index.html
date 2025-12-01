@@ -1,6 +1,82 @@
-<div class="space-y-6">
+<div class="space-y-10">
+
+    <!-- 1. Banner 区域 (仅当开启时显示) -->
+    {{ if eq .Theme.Config.enable_banner "开启" }}
+    <div class="relative w-full h-[400px] rounded-2xl overflow-hidden shadow-lg group">
+        
+        <!-- 背景图 -->
+        <div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" 
+             style="background-image: url('{{ .Theme.Config.banner_image }}');">
+        </div>
+        
+        <!-- 黑色遮罩 (Overlay) -->
+        <div class="absolute inset-0 bg-black/40"></div>
+
+        <!-- 文字内容 -->
+        <div class="relative z-10 h-full flex flex-col justify-center items-center text-center px-4">
+            <h1 class="text-4xl md:text-5xl font-bold text-white tracking-tight mb-4 drop-shadow-md">
+                {{ .Site.site_title }}
+            </h1>
+            
+            <!-- 打字机容器 -->
+            <div class="text-lg md:text-xl text-gray-200 font-mono h-8">
+                <span id="typewriter-text"></span><span class="animate-pulse">|</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 打字机脚本 (内嵌，适配 HTMX) -->
+    <script>
+        (function() {
+            function startTypewriter() {
+                const el = document.getElementById('typewriter-text');
+                if (!el) return;
+
+                // 获取配置的文字 (Go模板渲染)
+                const text = "{{ .Theme.Config.banner_text }}";
+                let i = 0;
+                
+                el.innerText = ""; // 清空
+
+                function type() {
+                    if (i < text.length) {
+                        el.innerText += text.charAt(i);
+                        i++;
+                        setTimeout(type, 100); // 打字速度 100ms
+                    }
+                }
+                type();
+            }
+
+            // 首次加载运行
+            startTypewriter();
+            
+            // HTMX 切换回来时重新运行
+            document.body.addEventListener('htmx:afterSwap', function(evt) {
+                // 只有当 swap 的内容包含 banner 时才运行
+                startTypewriter();
+            });
+        })();
+    </script>
+    {{ end }}
+
+    <!-- 2. 个人简介 (移动到 Banner 下方) -->
+    <div class="flex items-center gap-4 px-2">
+        {{ if .Theme.Config.avatar_url }}
+        <img src="{{ .Theme.Config.avatar_url }}" class="w-14 h-14 rounded-full border-2 border-white shadow-sm object-cover">
+        {{ end }}
+        <div>
+            <h2 class="font-bold text-lg text-gray-800">{{ .Theme.Author }}</h2>
+            <p class="text-gray-500 text-sm">{{ .Site.site_description }}</p>
+        </div>
+    </div>
+
+    <hr class="border-gray-100">
+
+    <!-- 3. 文章列表 -->
+    <div class="space-y-8">
     {{ range .Posts }}
-    <article class="bg-white border border-gray-200 rounded-xl p-6 md:p-8 hover:shadow-lg hover:border-blue-200 transition duration-300 group">
+    <article class="bg-white border border-gray-200 rounded-xl p-6 md:p-8 hover:shadow-lg hover:border-blue-200 transition duration-300 group cursor-pointer" onclick="location.href='/post/{{ if .Slug }}{{ .Slug }}{{ else }}{{ .ID }}{{ end }}'">
         <div class="flex items-center gap-2 text-xs text-gray-400 mb-3 font-medium uppercase tracking-wide">
             <span>{{ .CreatedAt.Format "Jan 02, 2006" }}</span>
             <span>•</span>
@@ -17,14 +93,15 @@
             {{ .Content | summary }}
         </div>
         
-        <a href="/post/{{ if .Slug }}{{ .Slug }}{{ else }}{{ .ID }}{{ end }}" class="inline-flex items-center text-sm font-semibold text-blue-600 hover:text-blue-800 transition">
-            阅读全文 
-            <svg class="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-        </a>
+        <span class="inline-flex items-center text-sm font-semibold text-blue-600 group-hover:underline">
+            Read Article →
+        </span>
     </article>
     {{ else }}
     <div class="text-center py-20 bg-white rounded-xl border border-gray-200 border-dashed">
         <p class="text-gray-400 text-lg">暂无文章</p>
     </div>
     {{ end }}
+    </div>
+
 </div>

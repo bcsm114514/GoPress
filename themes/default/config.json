@@ -1,36 +1,62 @@
 {
   "name": "Default Minimalist",
   "author": "GoPress Team",
-  "version": "2.1",
-  "description": "极简白主题，支持后台可视化配置。",
+  "version": "2.2",
+  "description": "支持 Favicon 和 首页 Banner 打字机特效。",
   "screenshot": "",
   "settings": [
+    {
+      "key": "favicon_url",
+      "label": "Favicon 图标 URL",
+      "type": "text",
+      "value": "",
+      "default": "https://golang.org/favicon.ico",
+      "description": "浏览器标签页上的小图标 (.ico/.png)"
+    },
+    {
+      "key": "enable_banner",
+      "label": "首页大图 (Banner)",
+      "type": "radio",
+      "options": ["开启", "关闭"],
+      "value": "开启",
+      "default": "开启"
+    },
+    {
+      "key": "banner_image",
+      "label": "Banner 背景图 URL",
+      "type": "text",
+      "value": "https://images.unsplash.com/photo-1499750310159-5b5f2269592b?q=80&w=2070&auto=format&fit=crop",
+      "default": "",
+      "description": "建议使用高清图片 (Unsplash 等)"
+    },
+    {
+      "key": "banner_text",
+      "label": "Banner 打字机文字",
+      "type": "textarea",
+      "value": "Hello World, Welcome to GoPress.",
+      "default": "Hello World",
+      "description": "这段文字会逐字显示"
+    },
     {
       "key": "github_url",
       "label": "GitHub 链接",
       "type": "text",
-      "value": "https://github.com/bcsm114514",
-      "default": "",
-      "options": null,
-      "description": "显示在右上角，留空则不显示"
+      "value": "https://github.com",
+      "description": "显示在右上角"
     },
     {
       "key": "avatar_url",
       "label": "侧栏头像地址",
       "type": "text",
       "value": "https://avatars.githubusercontent.com/u/1?v=4",
-      "default": "/static/avatar.png",
-      "options": null,
-      "description": "请输入图片 URL"
+      "default": ""
     },
     {
       "key": "footer_text",
-      "label": "页脚自定义文字",
+      "label": "页脚文字",
       "type": "textarea",
       "value": "All rights reserved.",
-      "default": "Powered by GoPress",
-      "options": null,
-      "description": "支持 HTML 标签"
+      "default": "Powered by GoPress"
     }
   ]
 }
