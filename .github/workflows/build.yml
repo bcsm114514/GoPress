@@ -1,16 +1,58 @@
-name: Build and Release
+name: Smart Build
 
 on:
+  # 1. 只有推送到 main 分支时触发
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
+    # 2. 忽略文档变更，只改文档时不触发构建
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+    # 3. 当推送 v* 标签时触发（用于发布）
     tags:
       - 'v*'
+  # 4. Pull Request 也只做简单检查
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
+    paths-ignore:
+      - '**.md'
+
+# 5. 并发策略：如果多次快速提交，自动取消上一次正在跑的构建
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build
+  # === 任务 A: 快速检查 (Fast Check) ===
+  # 目的：日常开发验证，确保代码能跑通，不做复杂操作
+  check:
+    name: Quick Check (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25.3'
+          cache: true # 6. 开启 Go 模块缓存，无需每次重新下载依赖
+
+      - name: Verify Code
+        run: |
+          go mod tidy
+          go vet ./...
+          # 只尝试编译当前 Linux 平台，不压缩，速度极快
+          go build -v .
+
+  # === 任务 B: 正式发布 (Release) ===
+  # 目的：全平台构建 + UPX + 上传
+  # 条件：只有打了 Tag (v*) 才会运行这个任务
+  release:
+    name: Build & Release
+    needs: check # 只有 check 成功了才跑这个，避免错误代码浪费时间
+    if: startsWith(github.ref, 'refs/tags/') # 7. 【省时关键】严格限制触发条件
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -32,16 +74,13 @@ jobs:
             output_name: gopress-darwin-arm64
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.25.3'
-
-    - name: Install dependencies
-      run: go mod tidy
+        go-version: '1.21'
+        cache: true
 
     - name: Install UPX
       uses: crazy-max/ghaction-upx@v3
@@ -53,37 +92,18 @@ jobs:
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: 0
+        CGO_ENABLED: 0 # 纯 Go 编译，不需要 C 库，跨平台更稳
       run: |
         go build -ldflags="-s -w" -o ${{ matrix.output_name }} .
 
     - name: Compress with UPX
-      # UPX 可能会对某些 Darwin (macOS) 二进制文件有问题，如果报错可以排除 darwin
-      if: matrix.goos != 'darwin' 
+      # 跳过 Mac (Darwin) 因为 UPX 压缩后可能会被 Mac 安全机制拦截
+      if: matrix.goos != 'darwin'
       run: upx --best --lzma ${{ matrix.output_name }}
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
       with:
-        name: ${{ matrix.output_name }}
-        path: ${{ matrix.output_name }}
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-      
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            gopress-linux-amd64/gopress-linux-amd64
-            gopress-linux-arm64/gopress-linux-arm64
-            gopress-windows-amd64.exe/gopress-windows-amd64.exe
-            gopress-darwin-amd64/gopress-darwin-amd64
-            gopress-darwin-arm64/gopress-darwin-arm64
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        files: ${{ matrix.output_name }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
