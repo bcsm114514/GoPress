@@ -1,32 +1,25 @@
 name: Build
 
 on:
-  # 1. 只有推送到 main 分支时触发
   push:
     branches: [ "main" ]
-    # 2. 忽略文档变更，只改文档时不触发构建
     paths-ignore:
       - '**.md'
       - 'docs/**'
       - 'LICENSE'
       - '.gitignore'
-    # 3. 当推送 v* 标签时触发（用于发布）
     tags:
       - 'v*'
-  # 4. Pull Request 也只做简单检查
   pull_request:
     branches: [ "main" ]
     paths-ignore:
       - '**.md'
 
-# 5. 并发策略：如果多次快速提交，自动取消上一次正在跑的构建
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # === 任务 A: 快速检查 (Fast Check) ===
-  # 目的：日常开发验证，确保代码能跑通，不做复杂操作
   check:
     name: Quick Check (Linux)
     runs-on: ubuntu-latest
@@ -37,8 +30,7 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.25.3'
-          cache: true # 6. 开启 Go 模块缓存，无需每次重新下载依赖
-
+          cache: true
       - name: Verify Code
         run: |
           go mod tidy
@@ -46,13 +38,10 @@ jobs:
           # 只尝试编译当前 Linux 平台，不压缩，速度极快
           go build -v .
 
-  # === 任务 B: 正式发布 (Release) ===
-  # 目的：全平台构建 + UPX + 上传
-  # 条件：只有打了 Tag (v*) 才会运行这个任务
   release:
     name: Build & Release
-    needs: check # 只有 check 成功了才跑这个，避免错误代码浪费时间
-    if: startsWith(github.ref, 'refs/tags/') # 7. 【省时关键】严格限制触发条件
+    needs: check 
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -92,12 +81,10 @@ jobs:
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: 0 # 纯 Go 编译，不需要 C 库，跨平台更稳
-      run: |
+        CGO_ENABLED: 0
         go build -ldflags="-s -w" -o ${{ matrix.output_name }} .
 
     - name: Compress with UPX
-      # 跳过 Mac (Darwin) 因为 UPX 压缩后可能会被 Mac 安全机制拦截
       if: matrix.goos != 'darwin'
       run: upx --best --lzma ${{ matrix.output_name }}
 
