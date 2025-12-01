@@ -1,4 +1,4 @@
-name: Smart Build
+name: Build
 
 on:
   # 1. 只有推送到 main 分支时触发
