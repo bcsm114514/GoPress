@@ -1,0 +1,18 @@
+<div class="flex justify-between items-center mb-6">
+    <h2 class="text-xl font-bold">{{.Title}}</h2>
+    <a href="/admin/write?type={{if eq .Type "page"}}page{{else}}post{{end}}" hx-boost="false" class="bg-black text-white px-4 py-2 rounded text-sm hover:bg-gray-800">新建</a>
+</div>
+<div class="bg-white border rounded shadow-sm overflow-hidden">
+    <table class="w-full text-left text-sm">
+        <thead class="bg-gray-50 border-b text-gray-500"><tr><th class="p-4">标题</th><th class="p-4">Slug</th><th class="p-4">操作</th></tr></thead>
+        <tbody>
+            {{ range .Posts }}
+            <tr class="hover:bg-gray-50 border-b">
+                <td class="p-4 font-medium">{{.Title}}</td>
+                <td class="p-4 text-gray-400">/{{.Slug}}</td>
+                <td class="p-4"><a href="/admin/posts/edit/{{.ID}}" hx-boost="false" class="text-blue-600 mr-2">编辑</a><a href="/admin/posts/delete/{{.ID}}" onclick="return confirm('删?')" class="text-red-500">删除</a></td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,36 @@
+{
+  "name": "Default Minimalist",
+  "author": "GoPress Team",
+  "version": "2.1",
+  "description": "极简白主题，支持后台可视化配置。",
+  "screenshot": "",
+  "settings": [
+    {
+      "key": "github_url",
+      "label": "GitHub 链接",
+      "type": "text",
+      "value": "https://github.com/bcsm114514",
+      "default": "",
+      "options": null,
+      "description": "显示在右上角，留空则不显示"
+    },
+    {
+      "key": "avatar_url",
+      "label": "侧栏头像地址",
+      "type": "text",
+      "value": "https://avatars.githubusercontent.com/u/1?v=4",
+      "default": "/static/avatar.png",
+      "options": null,
+      "description": "请输入图片 URL"
+    },
+    {
+      "key": "footer_text",
+      "label": "页脚自定义文字",
+      "type": "textarea",
+      "value": "All rights reserved.",
+      "default": "Powered by GoPress",
+      "options": null,
+      "description": "支持 HTML 标签"
+    }
+  ]
+}

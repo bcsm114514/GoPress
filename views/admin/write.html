@@ -1,0 +1,15 @@
+<div class="max-w-4xl mx-auto">
+    <form action="{{if .IsEdit}}/admin/posts/update/{{.Post.ID}}{{else}}/admin/posts{{end}}" method="POST">
+        <input type="hidden" name="type" value="{{.Post.Type}}">
+        <div class="bg-white p-6 rounded border shadow-sm space-y-6">
+            <input name="title" value="{{.Post.Title}}" class="w-full text-3xl font-bold border-none border-b focus:ring-0" placeholder="标题..." required>
+            <div class="flex items-center gap-2 text-sm text-gray-500">
+                <span>{{if eq .Post.Type "page"}}/{{else}}/post/{{end}}</span>
+                <input name="slug" value="{{.Post.Slug}}" class="bg-gray-50 border-none rounded focus:ring-1" placeholder="slug">
+            </div>
+            <textarea id="editor" name="content">{{.Post.Content}}</textarea>
+            <div class="flex justify-end pt-4 border-t"><button class="bg-black text-white px-6 py-2 rounded">发布</button></div>
+        </div>
+    </form>
+</div>
+<script>if(document.getElementById('editor'))new EasyMDE({element:document.getElementById('editor'),spellChecker:false,status:false,minHeight:"400px"});</script>

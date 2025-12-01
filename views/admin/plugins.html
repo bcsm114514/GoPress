@@ -1,0 +1,156 @@
+<div class="space-y-8">
+    
+    <!-- 顶部 -->
+    <div class="flex justify-between items-center">
+        <div class="flex items-center gap-4">
+            <h2 class="font-bold text-xl text-gray-800">插件管理</h2>
+            <button onclick="reloadPlugins()" class="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full hover:bg-gray-200 transition flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                重载
+            </button>
+        </div>
+        
+        <form id="uploadForm" class="flex gap-2">
+            <input type="file" name="plugin_zip" accept=".zip" class="hidden" id="zipInput" onchange="uploadPlugin()">
+            <label for="zipInput" class="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-800 transition cursor-pointer flex items-center gap-2 shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                安装插件 (.zip)
+            </label>
+        </form>
+    </div>
+
+    <!-- 插件列表 -->
+    <div class="grid grid-cols-1 gap-4">
+        {{ range .Plugins }}
+        <div class="bg-white border border-gray-200 rounded-lg p-5 flex items-start justify-between shadow-sm hover:shadow-md transition group">
+            <div class="flex gap-4">
+                <div class="h-12 w-12 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center font-bold text-lg border border-purple-100">
+                    🧩
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-bold text-gray-900">{{ .Name }}</h3>
+                        <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200">v{{ .Version }}</span>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-1">{{ .Description }}</p>
+                    <p class="text-xs text-gray-400 mt-2">ID: <span class="font-mono">{{ .ID }}</span> · Author: {{ .Author }} · Entry: <span class="font-mono bg-gray-50 px-1 rounded">{{ .Entry }}</span></p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <!-- 状态指示灯 -->
+                {{ if .Active }}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    运行中
+                </span>
+                {{ else }}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    已禁用
+                </span>
+                {{ end }}
+
+                <!-- 开关按钮 -->
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" class="sr-only peer" onchange="togglePlugin('{{.ID}}', this.checked)" {{ if .Active }}checked{{ end }}>
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
+                </label>
+                {{ if not .Active }}
+                <button onclick="deletePlugin('{{.ID}}')" class="text-gray-400 hover:text-red-600 transition p-1" title="卸载插件">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+                {{ end }}
+            </div>
+        </div>
+        {{ else }}
+        <div class="text-center py-12 bg-white rounded-lg border border-dashed border-gray-300">
+            <p class="text-gray-400">暂无已安装插件</p>
+        </div>
+        {{ end }}
+    </div>
+</div>
+
+<script>
+    async function uploadPlugin() {
+        const input = document.getElementById('zipInput');
+        if (input.files.length === 0) return;
+        
+        if(!confirm("确定要上传该插件吗？")) { input.value = ''; return; }
+
+        const formData = new FormData();
+        formData.append('plugin_zip', input.files[0]);
+
+        try {
+            const res = await fetch('/admin/plugins/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            
+            if (res.ok) {
+                // === 修复点：增加默认文本，防止 undefined ===
+                alert(data.message || "安装成功");
+                window.location.reload();
+            } else {
+                alert("失败: " + (data.error || "未知错误"));
+            }
+        } catch(e) { 
+            alert("网络错误"); 
+        }
+        input.value = '';
+    }
+
+    async function togglePlugin(id, isActive) {
+        try {
+            const formData = new FormData();
+            formData.append('id', id);
+            formData.append('active', isActive);
+
+            const res = await fetch('/admin/plugins/toggle', { method: 'POST', body: formData });
+            // toggle 接口之前可能没返回 message，这里需要处理
+            const data = await res.json().catch(() => ({})); 
+
+            if (!res.ok) {
+                alert("操作失败: " + (data.error || "未知错误"));
+                // 状态回滚
+                window.location.reload();
+            } else {
+                console.log("Plugin status updated");
+                // 稍后刷新以更新界面状态
+                setTimeout(() => window.location.reload(), 500);
+            }
+        } catch(e) {
+            alert("网络错误");
+            window.location.reload();
+        }
+    }
+
+    async function deletePlugin(id) {
+        if(!confirm(`⚠️ 确定要卸载并删除插件 [${id}] 吗？`)) return;
+        
+        try {
+            const res = await fetch('/admin/plugins/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: new URLSearchParams({'id': id})
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                alert(data.message || "已删除");
+                window.location.reload();
+            } else {
+                alert("删除失败: " + (data.error || "未知错误"));
+            }
+        } catch(e) { alert("网络错误"); }
+    }
+
+    async function reloadPlugins() {
+        try {
+            const res = await fetch('/admin/plugins/reload', { method: 'POST' });
+            const data = await res.json();
+            if(res.ok) {
+                alert(data.message || "重载成功");
+                window.location.reload();
+            } else {
+                alert("重载失败");
+            }
+        } catch(e) { alert("网络错误"); }
+    }
+</script>

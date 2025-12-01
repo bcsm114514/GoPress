@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoPress 安装向导</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>body{font-family:'Inter',sans-serif}.fade-in{animation:fadeIn 0.5s ease-out}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}</style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col justify-center items-center p-4">
+
+    <div class="mb-8 text-center fade-in">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-black text-white text-2xl font-bold mb-4 shadow-lg">GP</div>
+        <h1 class="text-2xl font-bold text-gray-900 tracking-tight">GoPress 安装向导</h1>
+    </div>
+
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-gray-100 overflow-hidden fade-in" style="animation-delay:0.1s">
+        <div class="p-8">
+            <form id="installForm" class="space-y-6">
+                <!-- 1. 数据库 -->
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">数据库连接</h3>
+                    <div class="mb-4">
+                        <select name="db_type" id="dbType" class="block w-full px-3 py-2 border rounded-lg bg-gray-50 text-sm focus:ring-2 focus:ring-black focus:outline-none">
+                            <option value="sqlite">SQLite (本地文件)</option>
+                            <option value="mysql">MySQL</option>
+                            <option value="postgres">PostgreSQL</option>
+                        </select>
+                    </div>
+                    <div id="sqliteConfig"><input type="text" name="db_path" value="gopress.db" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="文件名"></div>
+                    <div id="remoteConfig" class="hidden grid grid-cols-2 gap-3">
+                        <input type="text" name="db_host" value="127.0.0.1" class="border rounded-lg px-3 py-2 text-sm" placeholder="Host">
+                        <input type="text" name="db_port" id="dbPort" value="3306" class="border rounded-lg px-3 py-2 text-sm" placeholder="Port">
+                        <input type="text" name="db_user" value="root" class="border rounded-lg px-3 py-2 text-sm" placeholder="User">
+                        <input type="password" name="db_pass" class="border rounded-lg px-3 py-2 text-sm" placeholder="Password">
+                        <input type="text" name="db_name" value="gopress" class="border rounded-lg px-3 py-2 text-sm col-span-2" placeholder="Database Name">
+                    </div>
+                </div>
+
+                <!-- 2. 站点信息 -->
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">基本设置</h3>
+                    <div class="grid grid-cols-1 gap-3">
+                        <input type="text" name="site_title" value="My GoPress" class="border rounded-lg px-3 py-2 text-sm" placeholder="网站标题" required>
+                        <input type="text" name="site_description" value="Simple is better." class="border rounded-lg px-3 py-2 text-sm" placeholder="网站描述">
+                    </div>
+                </div>
+
+                <!-- 3. 管理员 -->
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2">管理员账号</h3>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <input type="text" name="admin_user" value="admin" class="border rounded-lg px-3 py-2 text-sm" placeholder="用户名" required>
+                            <input type="text" name="admin_nick" value="站长" class="border rounded-lg px-3 py-2 text-sm" placeholder="昵称" required>
+                        </div>
+                        
+                        <!-- 密码输入与强度条 -->
+                        <div>
+                            <input type="password" name="admin_pass" id="passInput" class="block w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-black outline-none transition" placeholder="设置登录密码 (需中等强度及以上)" required oninput="checkStrength()">
+                            
+                            <!-- 强度指示器 -->
+                            <div class="mt-2 flex items-center gap-2">
+                                <div class="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                    <div id="strengthBar" class="h-full w-0 bg-red-500 transition-all duration-300"></div>
+                                </div>
+                                <span id="strengthText" class="text-xs text-gray-400 font-medium w-12 text-right">空</span>
+                            </div>
+                            <p id="strengthHint" class="text-xs text-red-500 mt-1 hidden">密码太弱：请包含字母、数字，长度至少8位。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" disabled class="w-full py-3 bg-gray-300 text-white rounded-lg font-bold transition-all cursor-not-allowed">等待填写...</button>
+            </form>
+        </div>
+    </div>
+
+<script>
+    // === 密码强度检测算法 ===
+    function checkStrength() {
+        const val = document.getElementById('passInput').value;
+        const bar = document.getElementById('strengthBar');
+        const text = document.getElementById('strengthText');
+        const hint = document.getElementById('strengthHint');
+        const btn = document.getElementById('submitBtn');
+
+        let score = 0;
+        if (!val) {
+            bar.style.width = '0%'; text.innerText = '空';
+            btn.disabled = true; btn.classList.replace('bg-black','bg-gray-300');
+            return;
+        }
+
+        // 评分规则
+        if (val.length >= 8) score += 30;
+        if (val.length >= 12) score += 20;
+        if (/[A-Z]/.test(val)) score += 15;
+        if (/[a-z]/.test(val)) score += 15;
+        if (/[0-9]/.test(val)) score += 15;
+        if (/[^A-Za-z0-9]/.test(val)) score += 20;
+
+        // UI 更新
+        if (score < 50) {
+            // 弱
+            bar.style.width = '30%'; bar.className = 'h-full bg-red-500 transition-all duration-300';
+            text.innerText = '弱'; text.className = 'text-xs font-medium w-12 text-right text-red-500';
+            hint.classList.remove('hidden');
+            btn.disabled = true;
+            btn.innerText = "密码强度不足";
+            btn.classList.replace('bg-black', 'bg-gray-300');
+            btn.classList.add('cursor-not-allowed');
+        } else if (score < 80) {
+            // 中
+            bar.style.width = '60%'; bar.className = 'h-full bg-yellow-500 transition-all duration-300';
+            text.innerText = '中'; text.className = 'text-xs font-medium w-12 text-right text-yellow-600';
+            hint.classList.add('hidden');
+            btn.disabled = false;
+            btn.innerText = "开始安装";
+            btn.classList.replace('bg-gray-300', 'bg-black');
+            btn.classList.remove('cursor-not-allowed');
+        } else {
+            // 强
+            bar.style.width = '100%'; bar.className = 'h-full bg-green-500 transition-all duration-300';
+            text.innerText = '强'; text.className = 'text-xs font-medium w-12 text-right text-green-600';
+            hint.classList.add('hidden');
+            btn.disabled = false;
+            btn.innerText = "开始安装";
+            btn.classList.replace('bg-gray-300', 'bg-black');
+            btn.classList.remove('cursor-not-allowed');
+        }
+    }
+
+    // 数据库切换
+    const sel = document.getElementById('dbType'), sql = document.getElementById('sqliteConfig'), rem = document.getElementById('remoteConfig'), port = document.getElementById('dbPort');
+    sel.onchange = () => {
+        if(sel.value==='sqlite'){sql.classList.remove('hidden');rem.classList.add('hidden')}
+        else{sql.classList.add('hidden');rem.classList.remove('hidden');port.value=sel.value==='mysql'?'3306':'5432'}
+    };
+
+    // 提交与轮询逻辑
+    async function checkServer(retry=0) {
+        if(retry>20) { alert('超时，请手动刷新'); return; }
+        try {
+            if((await fetch('/',{method:'HEAD',cache:'no-store'})).ok) location.href='/';
+            else throw new Error('wait');
+        } catch(e) { setTimeout(()=>checkServer(retry+1), 1000); }
+    }
+
+    document.getElementById('installForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true; btn.innerText = "正在配置...";
+        
+        try {
+            const res = await fetch('/do-install', {method:'POST', body:new FormData(e.target)});
+            const d = await res.json();
+            if(d.status==='ok') {
+                btn.innerText = "安装成功，重启中...";
+                btn.classList.replace('bg-black', 'bg-green-600');
+                setTimeout(()=>checkServer(), 1500);
+            } else { throw new Error(d.error); }
+        } catch(err) {
+            alert("错误: "+err.message);
+            btn.disabled = false; btn.innerText = "开始安装";
+        }
+    };
+</script>
+</body>
+</html>
