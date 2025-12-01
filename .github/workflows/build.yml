@@ -1,23 +1,25 @@
 name: Manual Release
 
 on:
-  # 唯一触发方式：手动点击按钮
   workflow_dispatch:
     inputs:
       version:
         description: 'Release Version (e.g. v1.0.0)'
         required: true
-        default: 'v1.0.0-manual'
+        default: 'v1.0.0'
       is_draft:
-        description: 'Mark as Draft? (草稿状态，不去对外发布)'
+        description: 'Mark as Draft?'
         type: boolean
         required: true
         default: false
       use_upx:
-        description: 'Enable UPX Compression? (是否启用压缩)'
+        description: 'Enable UPX Compression?'
         type: boolean
         required: true
         default: true
+
+permissions:
+  contents: write # 必须开启写权限，否则无法推送 Tag 和创建 Release
 
 jobs:
   build:
@@ -49,7 +51,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.25.3'
+        go-version: '1.21'
         cache: true
 
     - name: Install UPX
@@ -68,13 +70,45 @@ jobs:
         go build -ldflags="-s -w" -o ${{ matrix.output_name }} .
 
     - name: Compress with UPX
-      # 只有当用户选择了压缩，且不是 Mac 系统时才运行 (Mac压缩后可能有签名问题)
       if: ${{ inputs.use_upx && matrix.goos != 'darwin' }}
       run: upx --best --lzma ${{ matrix.output_name }}
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
       with:
-        files: ${{ matrix.output_name }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: ${{ matrix.output_name }}
+        path: ${{ matrix.output_name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        # 这里需要 checkout 代码，否则无法打 Tag
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # === 关键修复：自动创建并推送 Tag ===
+      - name: Create and Push Tag
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          # 如果 Tag 已存在，先删除本地标签避免冲突（可选，视情况而定）
+          # 这里假设你输入的版本号是唯一的
+          git tag ${{ inputs.version }}
+          git push origin ${{ inputs.version }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.version }} # 指向刚才创建的 Tag
+          name: Release ${{ inputs.version }}
+          draft: ${{ inputs.is_draft }}
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
