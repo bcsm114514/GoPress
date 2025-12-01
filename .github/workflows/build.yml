@@ -35,7 +35,6 @@ jobs:
         run: |
           go mod tidy
           go vet ./...
-          # 只尝试编译当前 Linux 平台，不压缩，速度极快
           go build -v .
 
   release:
