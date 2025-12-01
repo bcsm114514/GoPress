@@ -1,0 +1,89 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            output_name: gopress-linux-amd64
+          - goos: linux
+            goarch: arm64
+            output_name: gopress-linux-arm64
+          - goos: windows
+            goarch: amd64
+            output_name: gopress-windows-amd64.exe
+          - goos: darwin
+            goarch: amd64
+            output_name: gopress-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            output_name: gopress-darwin-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.20'
+
+    - name: Install dependencies
+      run: go mod tidy
+
+    - name: Install UPX
+      uses: crazy-max/ghaction-upx@v3
+      with:
+        install-only: true
+        version: latest
+
+    - name: Build Binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        go build -ldflags="-s -w" -o ${{ matrix.output_name }} .
+
+    - name: Compress with UPX
+      # UPX 可能会对某些 Darwin (macOS) 二进制文件有问题，如果报错可以排除 darwin
+      if: matrix.goos != 'darwin' 
+      run: upx --best --lzma ${{ matrix.output_name }}
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.output_name }}
+        path: ${{ matrix.output_name }}
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            gopress-linux-amd64/gopress-linux-amd64
+            gopress-linux-arm64/gopress-linux-arm64
+            gopress-windows-amd64.exe/gopress-windows-amd64.exe
+            gopress-darwin-amd64/gopress-darwin-amd64
+            gopress-darwin-arm64/gopress-darwin-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
