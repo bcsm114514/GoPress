@@ -1,4 +1,4 @@
-name: Manual Release
+name: Release & Docker
 
 on:
   workflow_dispatch:
@@ -17,13 +17,26 @@ on:
         type: boolean
         required: true
         default: true
+      publish_docker:
+        description: 'Publish Docker Image?'
+        type: boolean
+        required: true
+        default: true
 
+# 权限设置：既要写代码库(打Tag/发Release)，又要写Packages(发Docker)
 permissions:
-  contents: write # 必须开启写权限，否则无法推送 Tag 和创建 Release
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  # 镜像名称默认使用仓库名 (格式: owner/repo)
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
-    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+  # === 任务 1: 编译二进制文件 ===
+  build_binaries:
+    name: Build Binaries
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -45,8 +58,7 @@ jobs:
             output_name: gopress-darwin-arm64
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Set up Go
       uses: actions/setup-go@v4
@@ -61,54 +73,95 @@ jobs:
         install-only: true
         version: latest
 
-    - name: Build Binary
+    - name: Build
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: 0
-      run: |
-        go build -ldflags="-s -w" -o ${{ matrix.output_name }} .
+      run: go build -ldflags="-s -w" -o ${{ matrix.output_name }} .
 
-    - name: Compress with UPX
+    - name: Compress
       if: ${{ inputs.use_upx && matrix.goos != 'darwin' }}
       run: upx --best --lzma ${{ matrix.output_name }}
 
-    - name: Upload Artifact
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.output_name }}
         path: ${{ matrix.output_name }}
 
-  release:
+  # === 任务 2: 创建 GitHub Release ===
+  create_release:
     name: Create Release
-    needs: build
+    needs: build_binaries
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        # 这里需要 checkout 代码，否则无法打 Tag
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 必须拉取完整历史以强制更新 Tag
 
-      - name: Download all artifacts
+      - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      # === 关键修复：自动创建并推送 Tag ===
-      - name: Create and Push Tag
+      # 自动打标签
+      - name: Tag and Push
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          # 如果 Tag 已存在，先删除本地标签避免冲突（可选，视情况而定）
-          # 这里假设你输入的版本号是唯一的
-          git tag ${{ inputs.version }}
-          git push origin ${{ inputs.version }}
+          git tag -f ${{ inputs.version }}
+          git push -f origin ${{ inputs.version }}
 
-      - name: Create Release
+      # 发布 Release
+      - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ inputs.version }} # 指向刚才创建的 Tag
+          tag_name: ${{ inputs.version }}
           name: Release ${{ inputs.version }}
           draft: ${{ inputs.is_draft }}
+          allow_updates: true
+          replace_artifacts: true
           files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # === 任务 3: 构建并推送 Docker 镜像 ===
+  build_docker:
+    name: Build Docker
+    needs: create_release # 等 Release 成功后再发 Docker，保证版本一致
+    if: ${{ inputs.publish_docker }} # 只有勾选了才跑
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 将镜像名称转换为小写 (Docker 要求)
+      - name: Lowercase Image Name
+        run: |
+          echo "IMAGE_NAME_LOWER=${IMAGE_NAME,,}" >>${GITHUB_ENV}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 构建并推送
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # 构建多架构镜像
+          platforms: linux/amd64,linux/arm64
+          # 同时打两个标签: vX.X.X 和 latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:${{ inputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:latest
