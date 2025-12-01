@@ -49,7 +49,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.21'
+        go-version: '1.25.3'
         cache: true
 
     - name: Install UPX
@@ -72,36 +72,9 @@ jobs:
       if: ${{ inputs.use_upx && matrix.goos != 'darwin' }}
       run: upx --best --lzma ${{ matrix.output_name }}
 
-    # 上传构建产物到 Actions 临时存储，供 release job 使用
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
       with:
-        name: ${{ matrix.output_name }}
-        path: ${{ matrix.output_name }}
-
-  release:
-    name: Create Release
-    needs: build # 等待所有构建完成后才执行
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # 必须赋予写权限才能创建 Release
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      # 将下载的文件夹层级展平，方便上传
-      - name: Display structure of downloaded files
-        run: ls -R artifacts
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ inputs.version }}
-          name: Release ${{ inputs.version }}
-          draft: ${{ inputs.is_draft }}
-          # 从 artifacts 目录里捞出所有文件
-          files: artifacts/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        files: ${{ matrix.output_name }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
