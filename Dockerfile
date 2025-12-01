@@ -1,13 +1,11 @@
 # === 第一阶段：构建 (Builder) ===
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25.3-alpine AS builder
 
 # 设置工作目录
 WORKDIR /app
 
 # 复制依赖文件并下载
 COPY go.mod go.sum ./
-# 设置 Go 代理，防止国内构建慢（GitHub Action其实不需要，但为了本地调试方便）
-ENV GOPROXY=https://goproxy.io,direct
 RUN go mod download
 
 # 复制源代码
