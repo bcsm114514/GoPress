@@ -1,46 +1,27 @@
-name: Build
+name: Manual Release
 
 on:
-  push:
-    branches: [ "main" ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
-      - '.gitignore'
-    tags:
-      - 'v*'
-  pull_request:
-    branches: [ "main" ]
-    paths-ignore:
-      - '**.md'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # 唯一触发方式：手动点击按钮
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release Version (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0-manual'
+      is_draft:
+        description: 'Mark as Draft? (草稿状态，不去对外发布)'
+        type: boolean
+        required: true
+        default: false
+      use_upx:
+        description: 'Enable UPX Compression? (是否启用压缩)'
+        type: boolean
+        required: true
+        default: true
 
 jobs:
-  check:
-    name: Quick Check (Linux)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.25.3'
-          cache: true
-      - name: Verify Code
-        run: |
-          go mod tidy
-          go vet ./...
-          go build -v .
-
-  release:
-    name: Build & Release
-    needs: check 
-    if: startsWith(github.ref, 'refs/tags/')
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -62,15 +43,17 @@ jobs:
             output_name: gopress-darwin-arm64
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.25.3'
+        go-version: '1.21'
         cache: true
 
     - name: Install UPX
+      if: ${{ inputs.use_upx }}
       uses: crazy-max/ghaction-upx@v3
       with:
         install-only: true
@@ -81,15 +64,44 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: 0
+      run: |
         go build -ldflags="-s -w" -o ${{ matrix.output_name }} .
 
     - name: Compress with UPX
-      if: matrix.goos != 'darwin'
+      # 只有当用户选择了压缩，且不是 Mac 系统时才运行 (Mac压缩后可能有签名问题)
+      if: ${{ inputs.use_upx && matrix.goos != 'darwin' }}
       run: upx --best --lzma ${{ matrix.output_name }}
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
+    # 上传构建产物到 Actions 临时存储，供 release job 使用
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
       with:
-        files: ${{ matrix.output_name }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: ${{ matrix.output_name }}
+        path: ${{ matrix.output_name }}
+
+  release:
+    name: Create Release
+    needs: build # 等待所有构建完成后才执行
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 必须赋予写权限才能创建 Release
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # 将下载的文件夹层级展平，方便上传
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.version }}
+          name: Release ${{ inputs.version }}
+          draft: ${{ inputs.is_draft }}
+          # 从 artifacts 目录里捞出所有文件
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
